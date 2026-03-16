@@ -381,9 +381,10 @@ func buildDoltSQLCmd(ctx context.Context, config *Config, args ...string) *exec.
 
 	cmd := exec.CommandContext(ctx, "dolt", fullArgs...)
 
-	if !config.IsRemote() {
-		cmd.Dir = config.DataDir
-	}
+	// GH#2537: Always set cmd.Dir to prevent dolt from creating stray
+	// .doltcfg/privileges.db files in the caller's CWD. Even TCP client
+	// connections can trigger .doltcfg creation if CWD is uncontrolled.
+	cmd.Dir = config.DataDir
 
 	if config.IsRemote() && config.Password != "" {
 		cmd.Env = append(os.Environ(), "DOLT_CLI_PASSWORD="+config.Password)
@@ -3042,6 +3043,10 @@ func GetActiveConnectionCount(townRoot string) (int, error) {
 		"-q", "SELECT COUNT(*) AS cnt FROM information_schema.PROCESSLIST",
 	}
 	cmd := exec.CommandContext(ctx, "dolt", fullArgs...)
+	// GH#2537: Set cmd.Dir to the server's data directory to prevent dolt from
+	// creating stray .doltcfg/privileges.db files in the caller's CWD. Even in
+	// TCP client mode, dolt may auto-create .doltcfg/ in the working directory.
+	cmd.Dir = config.DataDir
 	// Always set DOLT_CLI_PASSWORD to prevent interactive password prompt.
 	// When empty, dolt connects without a password (which is the default for local servers).
 	cmd.Env = append(os.Environ(), "DOLT_CLI_PASSWORD="+config.Password)
